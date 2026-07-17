@@ -23,8 +23,10 @@ describe("Vault path policy", () => {
     ]);
   });
 
-  it("excludes Obsidian, trash, git, and every hidden directory", () => {
+  it("excludes the configured settings directory and every hidden directory", () => {
     expect(isHiddenVaultPath(".obsidian/plugins/test.md")).toBe(true);
+    expect(isHiddenVaultPath("Settings/plugins/test.md", "Settings")).toBe(true);
+    expect(isHiddenVaultPath("Settings-note.md", "Settings")).toBe(false);
     expect(isHiddenVaultPath("Archive/.trash/note.md")).toBe(true);
     expect(isHiddenVaultPath("Project/.git/COMMIT.md")).toBe(true);
     expect(isHiddenVaultPath("Project/.private/note.md")).toBe(true);
@@ -42,5 +44,8 @@ describe("Vault path policy", () => {
       false,
     );
     expect(isIncludedMarkdown(".hidden/note.md", [""])).toBe(false);
+    expect(isIncludedMarkdown("Settings/plugins/note.md", [""], "Settings")).toBe(
+      false,
+    );
   });
 });

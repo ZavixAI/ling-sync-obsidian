@@ -1,4 +1,4 @@
-export const PLUGIN_VERSION = "0.1.0";
+export const PLUGIN_VERSION = "0.1.1";
 export const DEFAULT_API_BASE_URL = "https://api.withling.top";
 export const P0_SCOPES = ["notes.read", "notes.sync"] as const;
 
@@ -6,7 +6,7 @@ export type LingScope = (typeof P0_SCOPES)[number];
 
 export interface ConnectionSummary {
   connection_id: string;
-  provider: "obsidian" | string;
+  provider: "obsidian";
   status: string;
   vault_name: string;
   scopes: LingScope[];

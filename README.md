@@ -10,7 +10,7 @@ Ling Sync is a mobile-safe Obsidian Community Plugin that sends selected Markdow
 - Whole-Vault or selected-folder manifests.
 - Debounced create, modify, rename, and delete batches.
 - Strict server cursors and idempotent retries.
-- Startup reconciliation after plugin or device interruption.
+- Startup and foreground-resume reconciliation after plugin or device interruption.
 - Desktop and mobile networking through Obsidian `requestUrl`.
 - One active connector device per Ling account and Vault; pairing another device revokes the previous device to keep the P0 cursor single-writer.
 
@@ -52,7 +52,7 @@ The claim body is:
   "device_name": "Obsidian Mobile",
   "folder_paths": ["Projects/Ling"],
   "scopes": ["notes.read", "notes.sync"],
-  "plugin_version": "0.1.0"
+  "plugin_version": "0.1.1"
 }
 ```
 
@@ -97,15 +97,15 @@ The plugin sends a complete manifest as:
 
 Large manifests are split into an ordered snapshot: at most 100 entries and safely below the 8 MiB UTF-8 JSON limit per chunk. Every acknowledged chunk advances the cursor by one; only `is_last: true` tombstones notes absent from the completed snapshot. A new startup reconciliation safely replaces an interrupted partial snapshot with a new `snapshot_id` from chunk `0`.
 
-Change batches use the same cursor window and a stable `idempotency_key` for an in-flight retry. Every operation has its own `operation_id`. Content is included for `create` and `modify`; `rename` sends `previous_path`; `delete` sends the deleted path. A batch contains at most 100 operations and stays safely below 8 MiB. Markdown content is measured as UTF-8 and notes over 2 MiB are skipped with an explicit connection error so they cannot block later notes forever.
+Change batches use the same cursor window and a stable `idempotency_key` for an in-flight retry. Every operation has its own `operation_id`. Content is included for `create` and `modify`; `rename` sends `previous_path`; `delete` sends the deleted path. A batch contains at most 100 operations and stays safely below 8 MiB. Markdown content is measured as UTF-8. If an already mirrored note grows beyond 2 MiB, the plugin sends a delete operation so Ling cannot retain stale content. The plugin keeps an explicit connection error for the oversized path; after the file returns under the limit, a complete manifest restores the current content.
 
-At startup, heartbeat or token refresh returns the authoritative server cursor. If the plugin stopped after the server committed a request but before local settings were saved, it does not replay the stale cursor. It sends a fresh complete manifest from the server cursor. A runtime `409` follows the same reconciliation path.
+At startup and whenever Obsidian returns to the foreground, heartbeat or token refresh returns the authoritative server cursor and the plugin sends a fresh complete manifest. Focus and visibility events are coalesced so a mobile resume does not upload two manifests. If the plugin stopped after the server committed a request but before local settings were saved, it does not replay the stale cursor. A runtime `409` follows the same reconciliation path.
 
 ## Vault rules
 
 Only `.md` files under configured folders are uploaded. These paths are always excluded:
 
-- `.obsidian`
+- The Vault's configured settings directory (`Vault.configDir`)
 - `.trash`
 - `.git`
 - Any directory whose name starts with `.`
@@ -118,6 +118,7 @@ Vault access uses `Vault.getMarkdownFiles()` and `Vault.cachedRead()`. The plugi
 npm install
 npm test
 npm run build
+npm run check:release
 ```
 
 The build produces `main.js`. For a manual install, place these files in `<vault>/.obsidian/plugins/ling-sync/`:
@@ -125,10 +126,22 @@ The build produces `main.js`. For a manual install, place these files in `<vault
 ```text
 main.js
 manifest.json
-versions.json
 ```
 
 Enable **Ling Sync** in Obsidian's Community Plugins settings, configure the API and folders, and start pairing from Ling.
+
+## Release preparation
+
+`manifest.json`, `package.json`, and `versions.json` must describe the same plugin version and minimum Obsidian version. `npm run check:release` verifies that contract. A release tag must be the exact semantic version from `manifest.json` (for example, `0.1.1`, without a `v` prefix).
+
+Pushing an exact version tag runs tests, builds the production bundle, verifies the metadata, attests `main.js`, and creates a **draft** GitHub release with the assets Obsidian installs:
+
+```text
+main.js
+manifest.json
+```
+
+Review and publish the draft before submitting the repository to the Obsidian Community Plugin directory. `versions.json` stays in the repository root as the compatibility map; it is not a release attachment.
 
 Ling is authoritative for unlinking. API base URL and folders are locked while connected because they are part of the pairing authorization. Unlink the connection in Ling, then pair again to change them; the plugin does not expose a local-only disconnect that could leave an active server mirror behind.
 

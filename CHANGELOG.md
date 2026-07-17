@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.1 - 2026-07-17
+
+- Describe the Ling search and AI-assisted recall use case in the plugin manifest.
+- Respect each Vault's configured settings directory when filtering paths.
+- Add searchable settings definitions for Obsidian 1.13 and newer.
+- Publish only the release assets consumed by Obsidian and attest `main.js`.
+- Reconcile immediately after Obsidian returns to the foreground.
+- Remove stale Ling mirrors when a Markdown file grows beyond the 2 MiB limit.
+
 ## 0.1.0 - 2026-07-17
 
 - Add mobile-safe Obsidian-to-Ling Markdown synchronization.

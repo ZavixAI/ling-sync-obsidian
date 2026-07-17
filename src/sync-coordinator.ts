@@ -25,6 +25,7 @@ import { P0_SCOPES, PLUGIN_VERSION } from "./types";
 const CHANGE_DEBOUNCE_MS = 800;
 const FAILED_BATCH_RETRY_MS = 5_000;
 const HEARTBEAT_INTERVAL_MS = 60_000;
+const FOREGROUND_RECONCILE_DEBOUNCE_MS = 250;
 
 interface InFlightBatch {
   body: ChangesBatchRequest;
@@ -44,6 +45,7 @@ export class SyncCoordinator {
   private buildingOperationIds = new Set<string>();
   private flushTimer: number | null = null;
   private heartbeatTimer: number | null = null;
+  private foregroundReconcileTimer: number | null = null;
   private operationChain: Promise<void> = Promise.resolve();
   private stopped = true;
   private reconcileNeeded = false;
@@ -78,6 +80,30 @@ export class SyncCoordinator {
       window.clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
     }
+    if (this.foregroundReconcileTimer !== null) {
+      window.clearTimeout(this.foregroundReconcileTimer);
+      this.foregroundReconcileTimer = null;
+    }
+  }
+
+  handleAppResume(): void {
+    if (this.stopped || !this.settings.connection) {
+      return;
+    }
+    if (this.foregroundReconcileTimer !== null) {
+      window.clearTimeout(this.foregroundReconcileTimer);
+    }
+    this.foregroundReconcileTimer = window.setTimeout(() => {
+      this.foregroundReconcileTimer = null;
+      this.runInBackground(async () => {
+        if (this.stopped || !this.settings.connection) {
+          return;
+        }
+        this.reconcileNeeded = true;
+        await this.sendHeartbeat();
+        await this.uploadManifest();
+      });
+    }, FOREGROUND_RECONCILE_DEBOUNCE_MS);
   }
 
   claim(parameters: ClaimParameters): Promise<void> {
@@ -123,6 +149,10 @@ export class SyncCoordinator {
     if (!this.shouldSync(path)) {
       return;
     }
+    if (this.oversizedPaths.has(path)) {
+      this.scheduleManifestReconciliation();
+      return;
+    }
     const knownBefore = this.settings.noteIds[path] !== undefined;
     const noteId = this.settings.noteIds[path] ?? randomId();
     this.settings.noteIds[path] = noteId;
@@ -142,6 +172,10 @@ export class SyncCoordinator {
   handleModify(file: TFile): void {
     const path = normalizePath(file.path);
     if (!this.shouldSync(path)) {
+      return;
+    }
+    if (this.oversizedPaths.has(path)) {
+      this.scheduleManifestReconciliation();
       return;
     }
     const knownBefore = this.settings.noteIds[path] !== undefined;
@@ -176,6 +210,9 @@ export class SyncCoordinator {
       this.settings.noteIds[path] = previousNoteId;
       if (this.oversizedPaths.delete(previousPath)) {
         this.oversizedPaths.add(path);
+        this.scheduleManifestReconciliation();
+        void this.persistSettings();
+        return;
       }
       this.queueChange({
         operationId: randomId(),
@@ -192,7 +229,11 @@ export class SyncCoordinator {
 
     if (includedBefore && previousNoteId) {
       delete this.settings.noteIds[previousPath];
-      this.oversizedPaths.delete(previousPath);
+      if (this.oversizedPaths.delete(previousPath)) {
+        this.scheduleManifestReconciliation();
+        void this.persistSettings();
+        return;
+      }
       this.queueChange({
         operationId: randomId(),
         type: "delete",
@@ -230,7 +271,11 @@ export class SyncCoordinator {
       return;
     }
     delete this.settings.noteIds[path];
-    this.oversizedPaths.delete(path);
+    if (this.oversizedPaths.delete(path)) {
+      this.scheduleManifestReconciliation();
+      void this.persistSettings();
+      return;
+    }
     this.queueChange({
       operationId: randomId(),
       type: "delete",
@@ -273,12 +318,24 @@ export class SyncCoordinator {
     }, delay);
   }
 
+  private scheduleManifestReconciliation(): void {
+    this.reconcileNeeded = true;
+    this.scheduleFlush(CHANGE_DEBOUNCE_MS);
+  }
+
   private async flushChanges(): Promise<void> {
-    if (!this.settings.connection || this.pendingChanges.length === 0) {
+    if (!this.settings.connection) {
       return;
     }
 
     try {
+      if (this.pendingChanges.length === 0) {
+        if (this.reconcileNeeded) {
+          await this.sendHeartbeat();
+          await this.uploadManifest();
+        }
+        return;
+      }
       if (!this.inFlightBatch) {
         this.inFlightBatch = await this.buildChangesBatch();
       }
@@ -288,7 +345,7 @@ export class SyncCoordinator {
         this.updateSizeWarning();
         await this.persistSettings();
         this.statusChanged();
-        if (this.pendingChanges.length > 0) {
+        if (this.pendingChanges.length > 0 || this.reconcileNeeded) {
           this.scheduleFlush(CHANGE_DEBOUNCE_MS);
         }
         return;
@@ -304,7 +361,7 @@ export class SyncCoordinator {
       await this.persistSettings();
       this.statusChanged();
 
-      if (this.pendingChanges.length > 0) {
+      if (this.pendingChanges.length > 0 || this.reconcileNeeded) {
         this.scheduleFlush(CHANGE_DEBOUNCE_MS);
       }
     } catch (error) {
@@ -345,6 +402,12 @@ export class SyncCoordinator {
 
         let operation: ChangeOperation | null = null;
         if (change.type === "rename") {
+          if (this.oversizedPaths.delete(change.previousPath)) {
+            this.oversizedPaths.add(change.path);
+            this.reconcileNeeded = true;
+            sourceOperationIds.add(change.operationId);
+            continue;
+          }
           operation = {
             operation_id: change.operationId,
             type: "rename",
@@ -355,6 +418,11 @@ export class SyncCoordinator {
             metadata: {},
           };
         } else if (change.type === "delete") {
+          if (this.oversizedPaths.delete(change.path)) {
+            this.reconcileNeeded = true;
+            sourceOperationIds.add(change.operationId);
+            continue;
+          }
           operation = {
             operation_id: change.operationId,
             type: "delete",
@@ -382,20 +450,32 @@ export class SyncCoordinator {
             const content = await this.app.vault.cachedRead(abstractFile);
             if (!isNoteContentWithinLimit(content)) {
               this.oversizedPaths.add(change.path);
-              sourceOperationIds.add(change.operationId);
-              continue;
+              if (change.knownBefore) {
+                operation = {
+                  operation_id: change.operationId,
+                  type: "delete",
+                  note_id: change.noteId,
+                  path: change.path,
+                  modified_at: this.modifiedAt(abstractFile),
+                  metadata: {},
+                };
+              } else {
+                sourceOperationIds.add(change.operationId);
+                continue;
+              }
+            } else {
+              this.oversizedPaths.delete(change.path);
+              operation = {
+                operation_id: change.operationId,
+                type: change.type,
+                note_id: change.noteId,
+                path: change.path,
+                content,
+                content_hash: await sha256Hex(content),
+                modified_at: this.modifiedAt(abstractFile),
+                metadata: {},
+              };
             }
-            this.oversizedPaths.delete(change.path);
-            operation = {
-              operation_id: change.operationId,
-              type: change.type,
-              note_id: change.noteId,
-              path: change.path,
-              content,
-              content_hash: await sha256Hex(content),
-              modified_at: this.modifiedAt(abstractFile),
-              metadata: {},
-            };
           }
         }
 
@@ -547,7 +627,11 @@ export class SyncCoordinator {
   }
 
   private shouldSync(path: string): boolean {
-    return isIncludedMarkdown(path, this.settings.folderPaths);
+    return isIncludedMarkdown(
+      path,
+      this.settings.folderPaths,
+      this.app.vault.configDir,
+    );
   }
 
   private modifiedAt(file: TFile): string {
@@ -589,7 +673,7 @@ export class SyncCoordinator {
     const paths = [...this.oversizedPaths].sort();
     const visiblePaths = paths.slice(0, 3).join(", ");
     const remainder = paths.length > 3 ? ` and ${paths.length - 3} more` : "";
-    this.settings.lastError = `Skipped ${visiblePaths}${remainder}: Markdown content exceeds the 2 MiB UTF-8 limit.`;
+    this.settings.lastError = `Not mirrored in Ling: ${visiblePaths}${remainder} exceeds the 2 MiB UTF-8 limit. Any previous Ling copy was removed; the local Vault file is unchanged.`;
   }
 
   private async recordError(error: unknown): Promise<void> {

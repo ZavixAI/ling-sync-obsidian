@@ -8,6 +8,7 @@ import {
 
 import { LingApiClient } from "./api";
 import { randomId } from "./crypto";
+import { registerForegroundLifecycle } from "./foreground-lifecycle";
 import { requestPairingConsent } from "./pairing-modal";
 import { normalizeFolderPaths } from "./path-policy";
 import {
@@ -56,7 +57,7 @@ export default class LingSyncPlugin extends Plugin {
       this.settings,
       this.api,
       () => this.saveSettings(),
-      () => this.settingTab?.display(),
+      () => this.settingTab?.refresh(),
     );
     this.settingTab = new LingSyncSettingTab(this.app, this);
     this.addSettingTab(this.settingTab);
@@ -76,6 +77,7 @@ export default class LingSyncPlugin extends Plugin {
           );
       },
     });
+    this.registerLifecycleEvents();
 
     this.app.workspace.onLayoutReady(() => {
       this.registerVaultEvents();
@@ -97,7 +99,7 @@ export default class LingSyncPlugin extends Plugin {
     if (this.settings.connection) {
       await this.coordinator.reconcile();
     }
-    this.settingTab.display();
+    this.settingTab.refresh();
   }
 
   saveSettings(): Promise<void> {
@@ -170,6 +172,18 @@ export default class LingSyncPlugin extends Plugin {
           this.coordinator.handleDelete(file);
         }
       }),
+    );
+  }
+
+  private registerLifecycleEvents(): void {
+    registerForegroundLifecycle(
+      {
+        onFocus: (listener) => this.registerDomEvent(window, "focus", listener),
+        onVisibilityChange: (listener) =>
+          this.registerDomEvent(document, "visibilitychange", listener),
+        isVisible: () => document.visibilityState === "visible",
+      },
+      () => this.coordinator.handleAppResume(),
     );
   }
 

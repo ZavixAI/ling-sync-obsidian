@@ -1,5 +1,3 @@
-const HIDDEN_SYSTEM_DIRECTORIES = new Set([".obsidian", ".trash", ".git"]);
-
 export function normalizeVaultPath(path: string): string {
   const segments = path
     .trim()
@@ -22,25 +20,30 @@ export function normalizeFolderPaths(paths: readonly string[]): string[] {
   return normalized.sort();
 }
 
-export function isHiddenVaultPath(path: string): boolean {
+export function isHiddenVaultPath(path: string, configDir = ""): boolean {
   const segments = normalizeVaultPath(path).split("/");
-  return segments
-    .slice(0, -1)
-    .some(
-      (segment) =>
-        segment.startsWith(".") || HIDDEN_SYSTEM_DIRECTORIES.has(segment),
-    );
+  const parentSegments = segments.slice(0, -1);
+  const parentPath = parentSegments.join("/");
+  const normalizedConfigDir = normalizeVaultPath(configDir);
+  const isInsideConfigDir =
+    normalizedConfigDir.length > 0 &&
+    (parentPath === normalizedConfigDir ||
+      parentPath.startsWith(`${normalizedConfigDir}/`));
+  return (
+    isInsideConfigDir || parentSegments.some((segment) => segment.startsWith("."))
+  );
 }
 
 export function isIncludedMarkdown(
   path: string,
   folderPaths: readonly string[],
+  configDir = "",
 ): boolean {
   const normalizedPath = normalizeVaultPath(path);
   if (!normalizedPath.toLowerCase().endsWith(".md")) {
     return false;
   }
-  if (isHiddenVaultPath(normalizedPath)) {
+  if (isHiddenVaultPath(normalizedPath, configDir)) {
     return false;
   }
 
