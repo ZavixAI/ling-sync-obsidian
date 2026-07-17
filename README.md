@@ -141,3 +141,9 @@ Ling is authoritative for unlinking. API base URL and folders are locked while c
 - P0 does not write, rename, or delete files in the Vault. Sync direction is Obsidian to Ling.
 - The plugin contains no telemetry, analytics, advertising, or payment flow.
 - This is a beta integration, not yet a published Obsidian Community Plugin listing.
+
+## License
+
+Copyright (c) 2026 ZavixAI. The source is available for security review and
+compatibility inspection, while redistribution and derivative works require
+prior written permission. See [LICENSE](LICENSE).

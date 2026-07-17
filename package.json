@@ -2,6 +2,16 @@
   "name": "ling-obsidian-sync",
   "version": "0.1.0",
   "description": "Mobile-safe Obsidian Community Plugin for syncing Markdown notes to Ling.",
+  "private": true,
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/ZavixAI/ling-sync-obsidian.git"
+  },
+  "homepage": "https://github.com/ZavixAI/ling-sync-obsidian#readme",
+  "bugs": {
+    "url": "https://github.com/ZavixAI/ling-sync-obsidian/issues"
+  },
   "type": "module",
   "main": "main.js",
   "scripts": {
