@@ -52,7 +52,7 @@ The claim body is:
   "device_name": "Obsidian Mobile",
   "folder_paths": ["Projects/Ling"],
   "scopes": ["notes.read", "notes.sync"],
-  "plugin_version": "0.1.2"
+  "plugin_version": "0.1.3"
 }
 ```
 
@@ -132,7 +132,7 @@ Enable **Ling Sync** in Obsidian's Community Plugins settings, configure the API
 
 ## Release preparation
 
-`manifest.json`, `package.json`, and `versions.json` must describe the same plugin version and minimum Obsidian version. `npm run check:release` verifies that contract. A release tag must be the exact semantic version from `manifest.json` (for example, `0.1.2`, without a `v` prefix).
+`manifest.json`, `package.json`, and `versions.json` must describe the same plugin version and minimum Obsidian version. `npm run check:release` verifies that contract. A release tag must be the exact semantic version from `manifest.json` (for example, `0.1.3`, without a `v` prefix).
 
 Pushing an exact version tag runs tests, builds the production bundle, verifies the metadata, attests `main.js`, and creates a **draft** GitHub release with the assets Obsidian installs:
 
@@ -157,6 +157,8 @@ Ling is authoritative for unlinking. API base URL and folders are locked while c
 
 ## License
 
-Copyright (c) 2026 ZavixAI. The source is available for security review and
-compatibility inspection, while redistribution and derivative works require
-prior written permission. See [LICENSE](LICENSE).
+Copyright (c) 2026 ZavixAI.
+
+The files in this repository are licensed under the Mozilla Public License 2.0.
+This license applies only to this plugin repository; Ling services and other
+separate products are not licensed by this repository. See [LICENSE](LICENSE).

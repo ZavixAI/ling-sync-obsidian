@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.3 - 2026-07-17
+
+- License this plugin repository under the recognized Mozilla Public License 2.0.
+
 ## 0.1.2 - 2026-07-17
 
 - Coalesce repeated foreground-resume events while reconciliation is already running.

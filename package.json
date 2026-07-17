@@ -1,9 +1,9 @@
 {
   "name": "ling-obsidian-sync",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Mobile-safe Obsidian Community Plugin for syncing Markdown notes to Ling.",
   "private": true,
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "MPL-2.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ZavixAI/ling-sync-obsidian.git"
