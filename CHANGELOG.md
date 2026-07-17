@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.2 - 2026-07-17
+
+- Coalesce repeated foreground-resume events while reconciliation is already running.
+- Discard stale foreground reconciliation work across plugin stop and restart.
+- Allow foreground reconciliation to recover cleanly after heartbeat or manifest failures.
+
 ## 0.1.1 - 2026-07-17
 
 - Describe the Ling search and AI-assisted recall use case in the plugin manifest.

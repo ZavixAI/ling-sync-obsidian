@@ -170,6 +170,140 @@ describe("SyncCoordinator lifecycle and Vault events", () => {
     coordinator.stop();
   });
 
+  it("does not queue a second foreground manifest while the first is running", async () => {
+    const file = createFile("note.md");
+    const contents = new Map([[file.path, "# Current\n"]]);
+    const settings = createSettings({ [file.path]: "note-1" });
+    const api = createApi(settings);
+    const coordinator = new SyncCoordinator(
+      createApp([file], contents),
+      settings,
+      api as unknown as LingApiClient,
+      vi.fn(async () => undefined),
+      vi.fn(),
+    );
+
+    await coordinator.start();
+    api.heartbeat.mockClear();
+    api.putManifest.mockClear();
+    let releaseManifest: (() => void) | undefined;
+    api.putManifest.mockImplementationOnce(
+      (body: ManifestRequest) =>
+        new Promise((resolve) => {
+          releaseManifest = () =>
+            resolve({
+              connection_id: CONNECTION.connection_id,
+              cursor: body.next_cursor,
+              applied_count: body.entries.length,
+              deleted_count: 0,
+              idempotent_replay: false,
+              acknowledged_operation_ids: [],
+            });
+        }),
+    );
+
+    coordinator.handleAppResume();
+    await vi.advanceTimersByTimeAsync(250);
+    await flushAsyncWork();
+    expect(api.putManifest).toHaveBeenCalledOnce();
+
+    coordinator.handleAppResume();
+    await vi.advanceTimersByTimeAsync(250);
+    await flushAsyncWork();
+    expect(api.heartbeat).toHaveBeenCalledOnce();
+    expect(api.putManifest).toHaveBeenCalledOnce();
+
+    releaseManifest?.();
+    await flushAsyncWork();
+    coordinator.stop();
+  });
+
+  it("discards a queued foreground reconcile across stop and restart", async () => {
+    const file = createFile("note.md");
+    const contents = new Map([[file.path, "# Current\n"]]);
+    const settings = createSettings({ [file.path]: "note-1" });
+    const api = createApi(settings);
+    const coordinator = new SyncCoordinator(
+      createApp([file], contents),
+      settings,
+      api as unknown as LingApiClient,
+      vi.fn(async () => undefined),
+      vi.fn(),
+    );
+
+    await coordinator.start();
+    api.heartbeat.mockClear();
+    api.putManifest.mockClear();
+    let releaseHeartbeat: (() => void) | undefined;
+    api.heartbeat.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseHeartbeat = () =>
+            resolve({
+              connection: { ...CONNECTION },
+              cursor: settings.cursor,
+            });
+        }),
+    );
+
+    const blockingReconcile = coordinator.reconcile();
+    await flushAsyncWork();
+    expect(api.heartbeat).toHaveBeenCalledOnce();
+
+    coordinator.handleAppResume();
+    await vi.advanceTimersByTimeAsync(250);
+    coordinator.stop();
+    const restarted = coordinator.start();
+
+    releaseHeartbeat?.();
+    await blockingReconcile;
+    await restarted;
+    await flushAsyncWork();
+
+    expect(api.heartbeat).toHaveBeenCalledTimes(2);
+    expect(api.putManifest).toHaveBeenCalledTimes(2);
+    coordinator.stop();
+  });
+
+  it("allows foreground reconciliation after heartbeat and manifest failures", async () => {
+    const file = createFile("note.md");
+    const contents = new Map([[file.path, "# Current\n"]]);
+    const settings = createSettings({ [file.path]: "note-1" });
+    const api = createApi(settings);
+    const coordinator = new SyncCoordinator(
+      createApp([file], contents),
+      settings,
+      api as unknown as LingApiClient,
+      vi.fn(async () => undefined),
+      vi.fn(),
+    );
+
+    await coordinator.start();
+    api.heartbeat.mockClear();
+    api.putManifest.mockClear();
+
+    api.heartbeat.mockRejectedValueOnce(new Error("heartbeat failed"));
+    coordinator.handleAppResume();
+    await vi.advanceTimersByTimeAsync(250);
+    await flushAsyncWork();
+    expect(api.heartbeat).toHaveBeenCalledOnce();
+    expect(api.putManifest).not.toHaveBeenCalled();
+
+    api.putManifest.mockRejectedValueOnce(new Error("manifest failed"));
+    coordinator.handleAppResume();
+    await vi.advanceTimersByTimeAsync(250);
+    await flushAsyncWork();
+    expect(api.heartbeat).toHaveBeenCalledTimes(2);
+    expect(api.putManifest).toHaveBeenCalledOnce();
+
+    coordinator.handleAppResume();
+    await vi.advanceTimersByTimeAsync(250);
+    await flushAsyncWork();
+    expect(api.heartbeat).toHaveBeenCalledTimes(3);
+    expect(api.putManifest).toHaveBeenCalledTimes(2);
+    coordinator.stop();
+  });
+
   it("tombstones a mirrored note that grows past 2 MiB and restores it by manifest", async () => {
     const file = createFile("note.md");
     const contents = new Map([[file.path, "# Small\n"]]);

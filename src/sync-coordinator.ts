@@ -46,6 +46,8 @@ export class SyncCoordinator {
   private flushTimer: number | null = null;
   private heartbeatTimer: number | null = null;
   private foregroundReconcileTimer: number | null = null;
+  private foregroundReconcileGeneration = 0;
+  private foregroundReconcilePendingGeneration: number | null = null;
   private operationChain: Promise<void> = Promise.resolve();
   private stopped = true;
   private reconcileNeeded = false;
@@ -72,6 +74,8 @@ export class SyncCoordinator {
 
   stop(): void {
     this.stopped = true;
+    this.foregroundReconcileGeneration += 1;
+    this.foregroundReconcilePendingGeneration = null;
     if (this.flushTimer !== null) {
       window.clearTimeout(this.flushTimer);
       this.flushTimer = null;
@@ -90,18 +94,43 @@ export class SyncCoordinator {
     if (this.stopped || !this.settings.connection) {
       return;
     }
+    const generation = this.foregroundReconcileGeneration;
     if (this.foregroundReconcileTimer !== null) {
       window.clearTimeout(this.foregroundReconcileTimer);
+    } else if (
+      this.foregroundReconcilePendingGeneration === generation
+    ) {
+      return;
     }
+    this.foregroundReconcilePendingGeneration = generation;
     this.foregroundReconcileTimer = window.setTimeout(() => {
       this.foregroundReconcileTimer = null;
       this.runInBackground(async () => {
-        if (this.stopped || !this.settings.connection) {
-          return;
+        try {
+          if (
+            this.stopped ||
+            generation !== this.foregroundReconcileGeneration ||
+            !this.settings.connection
+          ) {
+            return;
+          }
+          this.reconcileNeeded = true;
+          await this.sendHeartbeat();
+          if (
+            this.stopped ||
+            generation !== this.foregroundReconcileGeneration ||
+            !this.settings.connection
+          ) {
+            return;
+          }
+          await this.uploadManifest();
+        } finally {
+          if (
+            this.foregroundReconcilePendingGeneration === generation
+          ) {
+            this.foregroundReconcilePendingGeneration = null;
+          }
         }
-        this.reconcileNeeded = true;
-        await this.sendHeartbeat();
-        await this.uploadManifest();
       });
     }, FOREGROUND_RECONCILE_DEBOUNCE_MS);
   }

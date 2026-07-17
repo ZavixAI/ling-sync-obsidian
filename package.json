@@ -1,6 +1,6 @@
 {
   "name": "ling-obsidian-sync",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Mobile-safe Obsidian Community Plugin for syncing Markdown notes to Ling.",
   "private": true,
   "license": "SEE LICENSE IN LICENSE",

@@ -1,7 +1,7 @@
 {
   "id": "ling-sync",
   "name": "Ling Sync",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "minAppVersion": "1.11.4",
   "description": "Sync selected Markdown notes to Ling for search and AI-assisted recall.",
   "author": "Ling",
