@@ -1,4 +1,4 @@
-export const PLUGIN_VERSION = "0.1.3";
+export const PLUGIN_VERSION = "0.1.4";
 export const DEFAULT_API_BASE_URL = "https://api.withling.top";
 export const P0_SCOPES = ["notes.read", "notes.sync"] as const;
 

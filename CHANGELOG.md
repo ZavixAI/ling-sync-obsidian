@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.4 - 2026-07-17
+
+- Temporarily omit the release artifact attestation while Obsidian's automated reviewer does not support GitHub's current `bundle_url` attestation response.
+
 ## 0.1.3 - 2026-07-17
 
 - License this plugin repository under the recognized Mozilla Public License 2.0.

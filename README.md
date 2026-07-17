@@ -52,7 +52,7 @@ The claim body is:
   "device_name": "Obsidian Mobile",
   "folder_paths": ["Projects/Ling"],
   "scopes": ["notes.read", "notes.sync"],
-  "plugin_version": "0.1.3"
+  "plugin_version": "0.1.4"
 }
 ```
 
@@ -132,9 +132,9 @@ Enable **Ling Sync** in Obsidian's Community Plugins settings, configure the API
 
 ## Release preparation
 
-`manifest.json`, `package.json`, and `versions.json` must describe the same plugin version and minimum Obsidian version. `npm run check:release` verifies that contract. A release tag must be the exact semantic version from `manifest.json` (for example, `0.1.3`, without a `v` prefix).
+`manifest.json`, `package.json`, and `versions.json` must describe the same plugin version and minimum Obsidian version. `npm run check:release` verifies that contract. A release tag must be the exact semantic version from `manifest.json` (for example, `0.1.4`, without a `v` prefix).
 
-Pushing an exact version tag runs tests, builds the production bundle, verifies the metadata, attests `main.js`, and creates a **draft** GitHub release with the assets Obsidian installs:
+Pushing an exact version tag runs tests, builds the production bundle, verifies the metadata, and creates a **draft** GitHub release with the assets Obsidian installs:
 
 ```text
 main.js

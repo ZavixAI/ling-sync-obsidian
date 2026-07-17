@@ -7,9 +7,6 @@ on:
 
 permissions:
   contents: write
-  id-token: write
-  attestations: write
-  artifact-metadata: write
 
 jobs:
   release:
@@ -30,10 +27,7 @@ jobs:
         run: npm run build
       - name: Verify tag and release metadata
         run: npm run check:release -- "$GITHUB_REF_NAME"
-      - name: Attest production bundle
-        uses: actions/attest@v4
-        with:
-          subject-path: ${{ github.workspace }}/main.js
+      # Re-enable actions/attest after Obsidian supports GitHub's bundle_url response.
       - name: Create draft GitHub release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
