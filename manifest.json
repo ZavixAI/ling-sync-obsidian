@@ -1,0 +1,10 @@
+{
+  "id": "ling-sync",
+  "name": "Ling Sync",
+  "version": "0.1.0",
+  "minAppVersion": "1.11.4",
+  "description": "Sync selected Markdown notes from Obsidian to Ling.",
+  "author": "Ling",
+  "authorUrl": "https://withling.top",
+  "isDesktopOnly": false
+}

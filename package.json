@@ -1,0 +1,22 @@
+{
+  "name": "ling-obsidian-sync",
+  "version": "0.1.0",
+  "description": "Mobile-safe Obsidian Community Plugin for syncing Markdown notes to Ling.",
+  "type": "module",
+  "main": "main.js",
+  "scripts": {
+    "build": "tsc --noEmit && node esbuild.config.mjs production",
+    "dev": "node esbuild.config.mjs",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "esbuild": "^0.25.0",
+    "obsidian": "^1.13.1",
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
