@@ -7,7 +7,11 @@ function readJson(path) {
 const manifest = readJson("manifest.json");
 const packageJson = readJson("package.json");
 const versions = readJson("versions.json");
-const releaseTag = process.argv[2] ?? process.env.GITHUB_REF_NAME ?? manifest.version;
+const githubTag =
+  process.env.GITHUB_REF_TYPE === "tag"
+    ? process.env.GITHUB_REF_NAME
+    : undefined;
+const releaseTag = process.argv[2] ?? githubTag ?? manifest.version;
 
 const failures = [];
 if (releaseTag !== manifest.version) {
